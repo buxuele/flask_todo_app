@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+todo_venv/
+.vscode/
+.kiro/
+instance/
+
+
+.env 
+
+todo.md
+gg.bat
+cat_code.py
+start_repo.py
+my_files.txt
+说明.md
+
+
+
+# Instance Folder
+instance/
+
+# IDE / Editor specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS-specific
+.DS_Store
+Thumbs.db
