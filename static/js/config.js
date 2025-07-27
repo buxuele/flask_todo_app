@@ -15,3 +15,4 @@ let currentDate = today.toISOString().split("T")[0]; // 当前选中的日期 YY
 let allTodos = []; // 存储所有日期的todos
 let isSearchMode = false; // 是否处于搜索模式
 let rightClickedDate = null; // 存储右键点击的日期
+let pinnedDates = new Set(); // 存储置顶的日期

@@ -38,6 +38,9 @@ setupTextarea(newTodoTextarea);
 
 // 应用初始化
 function initApp() {
+  // 加载置顶状态
+  loadPinnedDates();
+
   // 生成日期列表
   generateDateList();
 

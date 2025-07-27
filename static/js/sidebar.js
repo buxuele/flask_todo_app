@@ -19,26 +19,50 @@ function generateDateList() {
         allDates.push(today);
       }
 
-      // 按日期排序（最新在前）
-      allDates.sort((a, b) => new Date(b) - new Date(a));
+      // 分离置顶和非置顶的日期
+      const pinnedDatesList = allDates.filter((date) => pinnedDates.has(date));
+      const unpinnedDatesList = allDates.filter(
+        (date) => !pinnedDates.has(date)
+      );
+
+      // 置顶日期按时间排序（最新在前），非置顶日期也按时间排序
+      pinnedDatesList.sort((a, b) => new Date(b) - new Date(a));
+      unpinnedDatesList.sort((a, b) => new Date(b) - new Date(a));
+
+      // 合并列表：置顶的在前面
+      const sortedDates = [...pinnedDatesList, ...unpinnedDatesList];
 
       // 获取日期别名
       return fetch(CONFIG.API_BASE.replace("/todos", "/date-aliases"))
         .then((r) => r.json())
         .then((aliases) => {
-          allDates.forEach((dateStr) => {
+          sortedDates.forEach((dateStr) => {
             const li = document.createElement("li");
             li.className = "date-item";
             if (dateStr === currentDate) {
               li.classList.add("active");
             }
 
-            // 始终使用具体日期显示，不使用别名
-            const displayName = formatDateForDisplay(dateStr);
+            // 如果是置顶的日期，添加置顶样式
+            if (pinnedDates.has(dateStr)) {
+              li.classList.add("pinned");
+            }
 
-            li.innerHTML = `
-              <span class="date-name">${displayName}</span>
-            `;
+            // 使用别名（如果存在）或默认的日期显示
+            const displayName =
+              aliases[dateStr] || formatDateForDisplay(dateStr);
+
+            // 根据是否置顶生成不同的HTML结构
+            if (pinnedDates.has(dateStr)) {
+              li.innerHTML = `
+                <span class="date-name">${displayName}</span>
+                <span class="pin-icon">📌</span>
+              `;
+            } else {
+              li.innerHTML = `
+                <span class="date-name">${displayName}</span>
+              `;
+            }
 
             // 添加数据属性以便准确识别
             li.dataset.date = dateStr;
@@ -101,9 +125,21 @@ function switchDate(dateStr) {
     }
   });
 
-  // 更新标题
-  const title = document.getElementById("current-date-title");
-  title.textContent = `${formatDateForDisplay(dateStr)} Todo`;
+  // 获取别名并更新标题
+  fetch(CONFIG.API_BASE.replace("/todos", "/date-aliases"))
+    .then((r) => r.json())
+    .then((aliases) => {
+      const title = document.getElementById("current-date-title");
+      // 使用别名（如果存在）或默认的日期显示
+      const displayName = aliases[dateStr] || formatDateForDisplay(dateStr);
+      title.textContent = `${displayName} Todo`;
+    })
+    .catch((error) => {
+      console.error("获取日期别名失败:", error);
+      // 如果获取别名失败，使用默认显示
+      const title = document.getElementById("current-date-title");
+      title.textContent = `${formatDateForDisplay(dateStr)} Todo`;
+    });
 
   // 重新加载该日期的todos
   fetchTodos();

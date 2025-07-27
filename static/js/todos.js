@@ -156,5 +156,23 @@ function copyTodoContent(id, buttonElement) {
 }
 
 function exportCurrentDate() {
-  window.open(CONFIG.API_BASE + "/export/" + currentDate, "_blank");
+  // 创建隐藏的下载链接，避免页面闪烁
+  const link = document.createElement("a");
+  link.href = CONFIG.API_BASE + "/export/" + currentDate;
+  link.download = `${formatDateForDisplay(currentDate).replace(
+    /\s+/g,
+    ""
+  )}-todo.md`;
+  link.style.display = "none";
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  // 显示下载成功提示
+  showNotification(
+    `${formatDateForDisplay(currentDate)} 的任务已导出`,
+    "success",
+    "导出成功"
+  );
 }

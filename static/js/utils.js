@@ -89,3 +89,33 @@ function showCopySuccess(buttonElement) {
     buttonElement.classList.add("btn-outline-secondary");
   }, 2000);
 }
+
+// 显示通知消息
+function showNotification(message, type = "success", title = "提示") {
+  const toast = document.getElementById("notification-toast");
+  const toastTitle = document.getElementById("toast-title");
+  const toastMessage = document.getElementById("toast-message");
+
+  // 设置消息内容
+  toastTitle.textContent = title;
+  toastMessage.textContent = message;
+
+  // 根据类型设置样式
+  toast.className = "toast";
+  if (type === "success") {
+    toast.classList.add("bg-success", "text-white");
+  } else if (type === "error") {
+    toast.classList.add("bg-danger", "text-white");
+  } else if (type === "warning") {
+    toast.classList.add("bg-warning", "text-dark");
+  } else {
+    toast.classList.add("bg-info", "text-white");
+  }
+
+  // 显示通知
+  const bsToast = new bootstrap.Toast(toast, {
+    autohide: true,
+    delay: 3000,
+  });
+  bsToast.show();
+}

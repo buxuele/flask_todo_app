@@ -8,6 +8,14 @@ function addContextMenuToDateItem(li, dateStr) {
     e.preventDefault();
     rightClickedDate = dateStr;
 
+    // 更新置顶菜单项的文本
+    const pinMenuItem = document.getElementById("pin-menu-item");
+    if (pinnedDates.has(dateStr)) {
+      pinMenuItem.textContent = "取消置顶";
+    } else {
+      pinMenuItem.textContent = "置顶";
+    }
+
     const contextMenu = document.getElementById("context-menu");
     contextMenu.style.display = "block";
     contextMenu.style.left = e.pageX + "px";
@@ -73,7 +81,7 @@ function copyDateList() {
         });
     })
     .then((newDate) => {
-      // 2. 为新日期设置别名
+      // 2. 为新日期设置别名 - 保持原始名称加上-copy
       return fetch(CONFIG.API_BASE.replace("/todos", "/date-aliases"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,14 +109,21 @@ function copyDateList() {
       // 3. 刷新日期列表显示新的副本
       generateDateList();
 
-      // 4. 切换到新创建的副本日期
+      // 4. 显示成功提示
+      showNotification(
+        `已复制 "${currentDisplayName}" 为 "${copyName}"`,
+        "success",
+        "复制成功"
+      );
+
+      // 5. 切换到新创建的副本日期
       setTimeout(() => {
         switchDate(newDate);
         console.log(`复制完成，已切换到新日期: ${newDate}`);
       }, 500); // 延迟一点确保列表已刷新
     })
     .catch((error) => {
-      alert("复制失败: " + error.message);
+      showNotification("复制失败: " + error.message, "error", "复制失败");
       console.error("复制任务失败:", error);
     });
 
@@ -150,17 +165,21 @@ function renameDateList() {
     })
     .then((result) => {
       if (result.error) {
-        alert("重命名失败: " + result.error);
+        showNotification("重命名失败: " + result.error, "error", "重命名失败");
       } else {
         console.log("重命名成功:", result.message);
         // 重新生成日期列表以显示新别名
         generateDateList();
         // 显示成功提示
-        console.log(`日期已重命名为: ${newName.trim()}`);
+        showNotification(
+          `已重命名为 "${newName.trim()}"`,
+          "success",
+          "重命名成功"
+        );
       }
     })
     .catch((error) => {
-      alert("重命名失败，请重试: " + error.message);
+      showNotification("重命名失败: " + error.message, "error", "重命名失败");
       console.error("设置日期别名失败:", error);
     });
 
@@ -171,13 +190,11 @@ function renameDateList() {
 function deleteDateList() {
   if (!rightClickedDate) return;
 
-  if (
-    !confirm(
-      `确定要删除 ${formatDateForDisplay(
-        rightClickedDate
-      )} 的所有任务吗？此操作不可恢复！`
-    )
-  ) {
+  const displayName = document.querySelector(
+    `[data-date="${rightClickedDate}"] .date-name`
+  ).textContent;
+
+  if (!confirm(`确定要删除 "${displayName}" 的所有任务吗？此操作不可恢复！`)) {
     document.getElementById("context-menu").style.display = "none";
     return;
   }
@@ -212,13 +229,69 @@ function deleteDateList() {
         switchDate(today);
       }
 
-      // 删除成功，不显示任何警告
+      // 显示删除成功提示
+      showNotification(
+        `已删除 "${displayName}" 的所有任务`,
+        "success",
+        "删除成功"
+      );
       console.log("删除成功:", result.message);
     })
     .catch((error) => {
       console.error("删除任务失败详细信息:", error);
-      alert("删除失败，请重试: " + error.message);
+      showNotification("删除失败: " + error.message, "error", "删除失败");
     });
 
   document.getElementById("context-menu").style.display = "none";
+}
+// 置顶/取消置顶日期列表功能
+function togglePinDateList() {
+  if (!rightClickedDate) return;
+
+  const displayName = document.querySelector(
+    `[data-date="${rightClickedDate}"] .date-name`
+  ).textContent;
+
+  if (pinnedDates.has(rightClickedDate)) {
+    // 取消置顶
+    pinnedDates.delete(rightClickedDate);
+    showNotification(`已取消置顶 "${displayName}"`, "success", "取消置顶");
+    console.log(`取消置顶日期: ${rightClickedDate}`);
+  } else {
+    // 置顶
+    pinnedDates.add(rightClickedDate);
+    showNotification(`已置顶 "${displayName}"`, "success", "置顶成功");
+    console.log(`置顶日期: ${rightClickedDate}`);
+  }
+
+  // 保存置顶状态到本地存储
+  savePinnedDates();
+
+  // 重新生成日期列表以反映置顶状态
+  generateDateList();
+
+  document.getElementById("context-menu").style.display = "none";
+}
+
+// 保存置顶状态到本地存储
+function savePinnedDates() {
+  try {
+    localStorage.setItem("pinnedDates", JSON.stringify([...pinnedDates]));
+  } catch (error) {
+    console.error("保存置顶状态失败:", error);
+  }
+}
+
+// 从本地存储加载置顶状态
+function loadPinnedDates() {
+  try {
+    const saved = localStorage.getItem("pinnedDates");
+    if (saved) {
+      const dates = JSON.parse(saved);
+      pinnedDates = new Set(dates);
+    }
+  } catch (error) {
+    console.error("加载置顶状态失败:", error);
+    pinnedDates = new Set();
+  }
 }

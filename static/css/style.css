@@ -107,6 +107,37 @@ body {
   display: none; /* 隐藏计数圆圈 */
 }
 
+/* 置顶相关样式 */
+.date-item.pinned {
+  background-color: #1a472a;
+  border-left: 3px solid #28a745;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.date-item.pinned:hover {
+  background-color: #2d5a3d;
+}
+
+.date-item.pinned.active {
+  background-color: #0d6efd;
+  border-left: 3px solid #28a745;
+}
+
+.pin-icon {
+  color: #dc3545; /* 红色图标 */
+  font-size: 0.9rem;
+  margin-left: auto; /* 推到右边 */
+  flex-shrink: 0;
+}
+
+/* 置顶项目的名称容器 */
+.date-item.pinned .date-name {
+  flex: 1;
+  text-align: left;
+}
+
 .main-content {
   flex: 1;
   padding: 48px;
@@ -274,6 +305,26 @@ body {
 
 .context-menu-item.danger:hover {
   background-color: #f8d7da;
+}
+
+/* 通知提示样式 */
+.toast-container {
+  z-index: 1050;
+}
+
+.toast {
+  border: 1px solid #000;
+  border-radius: 8px;
+  font-family: "MaruSC", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+}
+
+.toast-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+  font-weight: bold;
+}
+
+.toast-body {
+  font-size: 0.95rem;
 }
 
 @media (max-width: 600px) {

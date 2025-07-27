@@ -2,6 +2,9 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Flask Todo List</title>
     <link
@@ -127,10 +130,42 @@
 
     <!-- 右键菜单 -->
     <div class="context-menu" id="context-menu">
+      <div
+        class="context-menu-item"
+        onclick="togglePinDateList()"
+        id="pin-menu-item"
+      >
+        置顶
+      </div>
       <div class="context-menu-item" onclick="copyDateList()">复制列表</div>
       <div class="context-menu-item" onclick="renameDateList()">重命名</div>
       <div class="context-menu-item danger" onclick="deleteDateList()">
         删除列表
+      </div>
+    </div>
+
+    <!-- 消息提示 -->
+    <div
+      class="toast-container position-fixed top-0 end-0 p-3"
+      style="z-index: 1050"
+    >
+      <div
+        id="notification-toast"
+        class="toast"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        <div class="toast-header">
+          <strong class="me-auto" id="toast-title">提示</strong>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="toast"
+            aria-label="Close"
+          ></button>
+        </div>
+        <div class="toast-body" id="toast-message">操作完成</div>
       </div>
     </div>
 
