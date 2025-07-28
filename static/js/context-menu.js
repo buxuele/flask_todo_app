@@ -23,7 +23,7 @@ function addContextMenuToDateItem(li, dateStr) {
   });
 }
 
-// 复制日期列表功能 - 创建新的独立日期副本
+// 复制日期列表功能 - 创建新的独立日期副本，使用唯一标识符避免冲突
 function copyDateList() {
   if (!rightClickedDate) return;
 
@@ -31,62 +31,54 @@ function copyDateList() {
   const currentDisplayName = document.querySelector(
     `[data-date="${rightClickedDate}"] .date-name`
   ).textContent;
+
+  // 生成唯一的复制标识符：使用时间戳确保唯一性
+  const timestamp = Date.now();
   const copyName = currentDisplayName + "-copy";
 
+  // 生成一个基于时间戳的唯一"日期"标识符
+  // 格式：copy-YYYYMMDD-timestamp，确保不会与真实日期冲突
+  const today = new Date();
+  const datePrefix =
+    today.getFullYear() +
+    String(today.getMonth() + 1).padStart(2, "0") +
+    String(today.getDate()).padStart(2, "0");
+  const uniqueId = `copy-${datePrefix}-${timestamp}`;
+
   console.log(
-    `复制日期列表: ${rightClickedDate} (${currentDisplayName}) -> ${copyName}`
+    `复制日期列表: ${rightClickedDate} (${currentDisplayName}) -> ${copyName} (ID: ${uniqueId})`
   );
 
-  // 生成一个不冲突的新日期：使用一个未来的日期
-  // 策略：从明天开始，找到第一个没有数据的日期
-  fetch(CONFIG.API_BASE + "/counts")
-    .then((r) => r.json())
-    .then((counts) => {
-      const existingDates = Object.keys(counts);
-
-      // 从明天开始找一个空闲的日期
-      let newDate;
-      let daysOffset = 1;
-      do {
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + daysOffset);
-        newDate = futureDate.toISOString().split("T")[0];
-        daysOffset++;
-      } while (existingDates.includes(newDate) && daysOffset < 365); // 最多找365天
-
-      console.log(`找到空闲日期: ${newDate}`);
-
-      // 1. 复制任务到新日期
-      return fetch(CONFIG.API_BASE + "/copy-date", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source_date: rightClickedDate,
-          target_date: newDate,
-        }),
-      })
-        .then((response) => {
-          if (response.ok) {
-            return response.json();
-          } else {
-            throw new Error(`复制任务失败: HTTP ${response.status}`);
-          }
-        })
-        .then((result) => {
-          if (result.error) {
-            throw new Error(result.error);
-          }
-          console.log(`任务复制成功: ${result.message}`);
-          return newDate;
-        });
+  // 1. 复制任务到新的唯一标识符
+  fetch(CONFIG.API_BASE + "/copy-date", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source_date: rightClickedDate,
+      target_date: uniqueId,
+    }),
+  })
+    .then((response) => {
+      if (response.ok) {
+        return response.json();
+      } else {
+        throw new Error(`复制任务失败: HTTP ${response.status}`);
+      }
     })
-    .then((newDate) => {
-      // 2. 为新日期设置别名 - 保持原始名称加上-copy
+    .then((result) => {
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      console.log(`任务复制成功: ${result.message}`);
+      return uniqueId;
+    })
+    .then((newId) => {
+      // 2. 为新ID设置别名 - 显示为原始名称加上-copy
       return fetch(CONFIG.API_BASE.replace("/todos", "/date-aliases"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: newDate,
+          date: newId,
           alias: copyName,
         }),
       })
@@ -102,10 +94,10 @@ function copyDateList() {
             throw new Error(result.error);
           }
           console.log(`别名设置成功: ${copyName}`);
-          return newDate;
+          return newId;
         });
     })
-    .then((newDate) => {
+    .then((newId) => {
       // 3. 刷新日期列表显示新的副本
       generateDateList();
 
@@ -116,10 +108,10 @@ function copyDateList() {
         "复制成功"
       );
 
-      // 5. 切换到新创建的副本日期
+      // 5. 切换到新创建的副本
       setTimeout(() => {
-        switchDate(newDate);
-        console.log(`复制完成，已切换到新日期: ${newDate}`);
+        switchDate(newId);
+        console.log(`复制完成，已切换到新ID: ${newId}`);
       }, 500); // 延迟一点确保列表已刷新
     })
     .catch((error) => {

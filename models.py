@@ -5,11 +5,37 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import sqlite3
 import os
+import uuid
 
 db = SQLAlchemy()
 
+class TableRegistry(db.Model):
+    """表注册表 - 记录所有todo表的元信息"""
+    __tablename__ = 'table_registry'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    table_id = db.Column(db.String(36), nullable=False, unique=True)  # UUID
+    display_name = db.Column(db.String(100), nullable=False)  # 显示名称
+    table_type = db.Column(db.String(20), default='daily')  # 表类型: daily, copy
+    source_date = db.Column(db.String(10), nullable=True)  # 原始日期（如果是日期表）
+    source_table_id = db.Column(db.String(36), nullable=True)  # 复制来源表ID
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    is_active = db.Column(db.Boolean, default=True)  # 是否活跃
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'table_id': self.table_id,
+            'display_name': self.display_name,
+            'table_type': self.table_type,
+            'source_date': self.source_date,
+            'source_table_id': self.source_table_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'is_active': self.is_active
+        }
+
 class DateAlias(db.Model):
-    """日期别名表 - 这个保持不变"""
+    """日期别名表 - 兼容旧系统"""
     __tablename__ = 'date_aliases'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -26,7 +52,7 @@ class DateAlias(db.Model):
         }
 
 class DailyTodoManager:
-    """每日Todo管理器 - 处理动态表操作"""
+    """每日Todo管理器 - 处理动态表操作，支持UUID表名"""
     
     def __init__(self, db_path='instance/todos_new.db'):
         self.db_path = db_path
@@ -36,14 +62,48 @@ class DailyTodoManager:
         """确保数据库文件存在"""
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
     
+    def get_table_name_by_id(self, table_id):
+        """根据表ID生成实际的表名"""
+        return f"todo_{table_id.replace('-', '_')}"
+    
     def get_table_name(self, date_str):
-        """根据日期生成表名"""
+        """兼容旧系统：根据日期或唯一标识符生成表名"""
+        # 处理新的复制标识符格式：copy-YYYYMMDD-timestamp
+        # 以及传统日期格式：YYYY-MM-DD
         return f"todo_{date_str.replace('-', '_')}"
     
     def create_table_for_date(self, date_str):
-        """为指定日期创建表"""
+        """为指定日期创建表（简化版本，兼容旧系统和新的复制标识符）"""
         table_name = self.get_table_name(date_str)
-        
+        self._create_physical_table(table_name)
+        return table_name
+    
+    def create_copy_table(self, source_table_id, display_name):
+        """创建复制表"""
+        from flask import current_app
+        with current_app.app_context():
+            # 生成新的UUID
+            new_table_id = str(uuid.uuid4())
+            
+            # 创建注册记录
+            registry_entry = TableRegistry(
+                table_id=new_table_id,
+                display_name=display_name,
+                table_type='copy',
+                source_table_id=source_table_id
+            )
+            
+            db.session.add(registry_entry)
+            db.session.commit()
+            
+            # 创建实际的数据库表
+            new_table_name = self.get_table_name_by_id(new_table_id)
+            self._create_physical_table(new_table_name)
+            
+            return new_table_id, new_table_name
+    
+    def _create_physical_table(self, table_name):
+        """创建物理数据库表"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -61,11 +121,34 @@ class DailyTodoManager:
         cursor.execute(create_sql)
         conn.commit()
         conn.close()
+    
+    def format_date_for_display(self, date_str):
+        """格式化日期用于显示"""
+        try:
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            return date_obj.strftime('%m月%d日')
+        except:
+            return date_str
+    
+    def table_exists_by_id(self, table_id):
+        """检查指定表ID的表是否存在"""
+        table_name = self.get_table_name_by_id(table_id)
         
-        return table_name
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name=?
+        """, (table_name,))
+        
+        exists = cursor.fetchone() is not None
+        conn.close()
+        
+        return exists
     
     def table_exists(self, date_str):
-        """检查指定日期的表是否存在"""
+        """检查指定日期的表是否存在（兼容旧系统）"""
         table_name = self.get_table_name(date_str)
         
         conn = sqlite3.connect(self.db_path)
@@ -81,8 +164,41 @@ class DailyTodoManager:
         
         return exists
     
+    def get_todos_by_table_id(self, table_id):
+        """根据表ID获取todos"""
+        if not self.table_exists_by_id(table_id):
+            return []
+        
+        table_name = self.get_table_name_by_id(table_id)
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute(f"""
+        SELECT id, content, completed, order_num, created_at, completed_at
+        FROM {table_name}
+        ORDER BY order_num, id
+        """)
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        todos = []
+        for row in rows:
+            todos.append({
+                'id': row[0],
+                'content': row[1],
+                'completed': bool(row[2]),
+                'order': row[3],
+                'table_id': table_id,
+                'created_at': row[4],
+                'completed_at': row[5]
+            })
+        
+        return todos
+    
     def get_todos_for_date(self, date_str):
-        """获取指定日期的所有todos"""
+        """获取指定日期的所有todos（兼容旧系统）"""
         if not self.table_exists(date_str):
             return []
         
@@ -114,10 +230,42 @@ class DailyTodoManager:
         
         return todos
     
+    def add_todo_by_table_id(self, table_id, content, order_num=None):
+        """根据表ID添加新的todo"""
+        if not self.table_exists_by_id(table_id):
+            return None
+        
+        table_name = self.get_table_name_by_id(table_id)
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # 如果没有指定order，获取最大值+1
+        if order_num is None:
+            cursor.execute(f"SELECT MAX(order_num) FROM {table_name}")
+            max_order = cursor.fetchone()[0] or 0
+            order_num = max_order + 1
+        
+        cursor.execute(f"""
+        INSERT INTO {table_name} (content, completed, order_num, created_at)
+        VALUES (?, ?, ?, ?)
+        """, (content, 0, order_num, datetime.now().isoformat()))
+        
+        todo_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return todo_id
+
     def add_todo(self, date_str, content, order_num=None):
-        """添加新的todo"""
-        # 确保表存在
-        table_name = self.create_table_for_date(date_str)
+        """添加新的todo（兼容旧系统和新的复制标识符）"""
+        # 对于复制标识符，直接创建表，不需要注册表逻辑
+        if date_str.startswith('copy-'):
+            table_name = self.get_table_name(date_str)
+            self._create_physical_table(table_name)
+        else:
+            # 确保表存在（传统日期格式）
+            table_name = self.create_table_for_date(date_str)
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -140,7 +288,7 @@ class DailyTodoManager:
         return todo_id
     
     def update_todo(self, date_str, todo_id, **kwargs):
-        """更新todo"""
+        """更新todo（支持日期和复制标识符）"""
         if not self.table_exists(date_str):
             return False
         
@@ -231,7 +379,7 @@ class DailyTodoManager:
         return count
     
     def get_available_dates(self):
-        """获取所有有数据的日期"""
+        """获取所有有数据的日期和标识符"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -247,8 +395,9 @@ class DailyTodoManager:
         dates = []
         for table in tables:
             table_name = table[0]
-            date_str = table_name.replace('todo_', '').replace('_', '-')
-            dates.append(date_str)
+            # 从表名恢复原始标识符
+            identifier = table_name.replace('todo_', '').replace('_', '-')
+            dates.append(identifier)
         
         return dates
     
