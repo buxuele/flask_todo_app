@@ -43,5 +43,3 @@ if __name__ == '__main__':
     # 开机运行，端口是 5995
     app.run(debug=True, port=5990)
 
-
-    

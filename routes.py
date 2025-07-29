@@ -12,6 +12,14 @@ todo_bp = Blueprint('api', __name__, url_prefix='/api')
 # 全局todo管理器实例
 todo_manager = DailyTodoManager()
 
+def _is_valid_date_format(date_str):
+    """验证日期格式是否为YYYY-MM-DD"""
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
+
 def ensure_today_todo_file():
     """确保今天的todo文件和数据库表存在"""
     today = datetime.now().strftime('%Y-%m-%d')
@@ -223,11 +231,9 @@ def set_date_alias():
     if not date or not alias:
         return jsonify({'error': 'Date and alias are required'}), 400
     
-    # 验证日期格式
-    try:
-        datetime.strptime(date, '%Y-%m-%d')
-    except ValueError:
-        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+    # 验证日期格式 - 支持标准日期格式和复制表的唯一标识符格式
+    if not (date.startswith('copy-') or _is_valid_date_format(date)):
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD or copy-* format'}), 400
     
     try:
         # 查找现有别名或创建新的

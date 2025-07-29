@@ -21,10 +21,10 @@ my_files.txt
 
 
 
-# Instance Folder
+# 数据库文件
 instance/
 
-# IDE / Editor specific
+# 编辑器
 .idea/
 .vscode/
 *.swp
