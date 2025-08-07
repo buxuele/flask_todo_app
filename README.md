@@ -1,6 +1,6 @@
 # flask_todo_app
 
-![img](效果图/a2.png)
+![img](效果图/a1.png)
 
 ### todo app 
 
